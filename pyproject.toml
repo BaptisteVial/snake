@@ -19,5 +19,5 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.poetry.scripts]
 hello = "snake.proj.main:hello"
-snake = "snake.proj.main:blankscreen"
+snake = "snake.proj.main:snake"
 dimension = "snake.proj.main:dimension"
