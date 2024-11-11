@@ -24,15 +24,15 @@ def parse_args():
     # parser.add_argument('-H', '--height', type=int, default=HEIGHT_DEF, help="Height of the screen")
     parser.add_argument('-C', '--colons', type=int, default=COL_DEF, help="Number of colons")
     parser.add_argument('-L', '--lines', type=int, default=LIN_DEF, help="Number of lines")
-    parser.add_argument('-S', '--square_size', type=int, default=LIN_DEF, help="Size of checkers' squares")
+    parser.add_argument('-S', '--square_size', type=int, default=SQUARE_SIZE_DEF, help="Size of checkers' squares")
     args = parser.parse_args()
     return args
 
 def checkerboards(screen, square_size, nb_cols, nb_lines):
     color = (0, 0, 0) # black
-    for i in range(nb_lines):
-        for j in range(nb_cols-1):
-            rect = pygame.Rect((2*i*square size,(i+1)*square_size), (i*square_size,(j+1)*square_size), square_size, square_size)
+    for i in range(1, nb_lines):
+        for j in range(1, nb_cols):
+            rect = pygame.Rect(, top, square_size, square_size)
             pygame.draw.rect(screen, color, rect)
 
 def snake():
@@ -45,7 +45,7 @@ def snake():
     while var_quit:
 
     # Wait one second, starting from last display or now
-        clock.tick(100)
+        clock.tick(100) # way more than one, to have a better speed execution
     # Process new events (keyboard, mouse)
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
