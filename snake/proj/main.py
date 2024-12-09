@@ -10,14 +10,23 @@ HEIGHT_DEF = 300
 COL_DEF = 20
 LIN_DEF = 20
 SQUARE_SIZE_DEF = 20
-SNAKE_POS_INIT = [(10, 5), (10, 6), (10, 7)]
+SNAKE_POS_INIT = [(10, 7), (10, 6), (10, 5)]
 
 ### for a better readability : defining the useful colors
 
 black = (0,0,0)
 white = (255,255,255)
 green = (0, 255, 0)
+dark_green = (4, 175, 32)
 blue = (0, 0, 255)
+red = (255,0,0)
+
+###  for a better readability : defining the directions
+
+up = (-1,0)
+down = (1,0)
+right = (0,1)
+left = (0,-1)
 
 ### defining the parser, including : number of colons, of lines, size of the tiles ; allowing to change default parameters
 
@@ -63,36 +72,71 @@ def drawing_snake(screen, snake_positions, square_size):
 
 
 def snake():
-    ### initializing the arguments, the screen, the clock...
+    
+    ### initializing the arguments, the screen, the clock
     args=parse_args()
     pygame.init()
     screen = pygame.display.set_mode( (args.square_size*args.colons, args.square_size*args.lines) )
     clock = pygame.time.Clock()
     running = True  # ending condition : running = False
-    checkerboard=Checkerboard(rows = args.lines, colons = args.colons, color1 = black, color2 = white, tile_size = args.square_size) # drawing a black/white checkerboard...
-    snake = Snake(snake_color = green, snake_position = SNAKE_POS_INIT, snake_head_color = blue, tile_size = args.square_size)
+    
+    ### initializing the grid
+    checkerboard=Checkerboard(rows = args.lines, colons = args.colons, color1 = black, color2 = white, tile_size = args.square_size)
+    snake = Snake(snake_color = green, snake_position = SNAKE_POS_INIT, snake_head_color = dark_green, tile_size = args.square_size)
+
+    ### initializing the fruit(s)
+    fruits = [
+        Fruit(position=(3, 3), color=red, size=args.square_size),
+        Fruit(position=(15, 10), color=red, size=args.square_size)
+    ]
+    current_fruit_index = 0  # start with the first fruit
+    score = 0
 
     while running:
-        clock.tick(100) # >> 1 , to have a better speed execution
+        clock.tick(10) # > 1 , to have a better speed execution
     # Processing new events (keyboard, mouse)
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
-            if event.type == pygame.KEYDOWN:
+            elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_q:
-                    running = False  
+                    running = False
+                if event.key == pygame.K_UP:
+                    snake.change_direction(up)
+                if event.key == pygame.K_DOWN:
+                    snake.change_direction(down)
+                if event.key == pygame.K_LEFT:
+                    snake.change_direction(left)
+                if event.key == pygame.K_RIGHT:
+                    snake.change_direction(right)
 
-        screen.fill(white) # filling the screen with white
+        ### Move snake
+
+        grow = False
+        if fruits[current_fruit_index].position in snake:
+            grow = True
+            score = score + 1
+            current_fruit_index = (current_fruit_index + 1) % len(fruits) # notation that will be adapted to longer lists
+
+        snake.move(grow=grow)
+
+        ### Check collisions
+        if snake.check_collision(args.lines, args.colons):
+            print("Game Over!")
+            running = False
+
+        pygame.display.set_caption(f"Snake Game - Score: {score}") # display the current score
+        screen.fill(white)
         checkerboard.draw(screen)
         snake.draw(screen)
-#        drawing_snake(screen, SNAKE_POS_INIT, args.square_size) #...with the snake on it
+        fruits[current_fruit_index].draw(screen)
         pygame.display.update()
     
     pygame.quit()
 
 
 
-### Make a class to represent a square of the checkerboard.
+### Make a class to represent a square of the checkerboard
 
 class Tile :
     
@@ -108,7 +152,7 @@ class Tile :
     def draw(self, screen):
         pygame.draw.rect(screen, self.color, (self.colon * self.size, self.row * self.size, self.size, self.size))
 
-### Make a class for the checkerboard.
+### Make a class for the checkerboard
 
 class Checkerboard :
 
@@ -131,9 +175,8 @@ class Checkerboard :
                     color = self.color2
                 tile = Tile(color, self.tile_size, row, colon)
                 tile.draw(screen)
- # we would like to call the Tile class here instead of : pygame.draw.rect(screen, color, (col * square_size, row * square_size, square_size, square_size))
-
-### Make a class for the snake.
+ 
+### Make a class for the snake
 
 class Snake :
     def __init__(self, snake_color, snake_head_color, snake_position, tile_size):
@@ -141,16 +184,60 @@ class Snake :
         self.snake_color = snake_color
         self.snake_tile_size = tile_size
         self.snake_head_color = snake_head_color
+        self.direction = right
     
     def __repr__(self):
         return f"A {self.snake_color} snake, occupying the tiles {self.snake_position} "
+
+    def __contains__(self, position):
+        return position in self.snake_position
 
     def draw(self, screen):
         for pos in self.snake_position:
             tile = Tile(color=self.snake_color, size = self.snake_tile_size, row = pos[0], colon = pos[1])
             tile.draw(screen)
         tile = Tile(color=self.snake_head_color, size = self.snake_tile_size, row = self.snake_position[0][0], colon = self.snake_position[0][1])
-        tile.draw(screen)    
-# eventually choose a different color for the head
+        tile.draw(screen) # eventually choose a different color for the head
         
+    def move(self, grow=False):
+        head = self.snake_position[0]           # Calculate new head position
+        new_head = (head[0] + self.direction[0], head[1] + self.direction[1])   # Add new head
+        if grow:
+            self.snake_position = [new_head] + self.snake_position     # Keep the tail
+        else:
+            self.snake_position = [new_head] + self.snake_position[:-1]      # Remove the tail  
+
+    def change_direction(self, new_direction):
+        opposite_direction = (-self.direction[0], -self.direction[1])
+        if new_direction != opposite_direction:     # Prevent reversing on itself !!
+            self.direction = new_direction   
+    
+    def check_collision(self, rows, cols):
+    # Check if the snake collides with walls or itself
+        head = self.snake_position[0]
+        ###print(f"Checking collision for head at {head} within grid ({rows}, {cols})")
+        if head[0] < 0 or head[1] < 0 or head[0] >= rows or head[1] >= cols:
+            ###print("Collision with wall detected!")
+            return True
+        if head in self.snake_position[1:]:
+            ###print("Collision with self detected!")
+            return True
+        return False
+    
+
+### Make a class for the fruits
+
+class Fruit:
+    def __init__(self, position, color, size):
+        self.position = position
+        self.color = color
+        self.size = size
+
+    def __repr__(self):
+        return f"A {self.color} fruit, occupying the tiles {self.position} "
+
+    def draw(self, screen):
+        row, col = self.position
+        pygame.draw.rect(screen, self.color, (col * self.size, row * self.size, self.size, self.size))
+
         
