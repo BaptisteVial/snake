@@ -1,39 +1,88 @@
+### Importing useful modules
+
 import pygame
 import argparse
 import random
 import abc
 import enum
+from typing import List, Tuple, Iterator
+
+### Class that handles directions
 
 class Dir(enum.Enum):
+    """Represents the direction of the snake's movement."""
+
     UP = (0, -1)
     DOWN = (0, 1)
     LEFT = (-1, 0)
     RIGHT = (1, 0)
 
+
+### Default constants
+
+DEFAULT_WIDTH = 30
+DEFAULT_HEIGHT = 30
+DEFAULT_TILE_SIZE = 20
+DEFAULT_STARTING_SNAKE = [(10, 7), (10, 6), (10, 5)]
+DEFAULT_DIRECTION = Dir.RIGHT
+
+
+### Class that handles the drawing of the game objects
+
 class Board:
-    def __init__(self, screen, tile_size):
+    """
+    Represents the game board where all objects are drawn.
+
+    Attributes:
+        screen (pygame.Surface): The screen to draw objects on.
+        tile_size (int): Size of each tile on the board.
+
+    """
+
+    def __init__(self, screen: pygame.Surface, tile_size: int):
         self._screen = screen
         self._tile_size = tile_size
-        self._objects = []
+        self._objects: List[GameObject] = []
 
-    def draw(self):
+    def draw(self) -> None:
+        """Draws all game objects on the screen."""
         for obj in self._objects:
             for tile in obj.tiles:
                 tile.draw(self._screen, self._tile_size)
 
-    def add_object(self, gameobject):
-        self._objects.append(gameobject)
+    def add_object(self, game_object: 'GameObject') -> None:
+        """Adds a game object to the board.
+
+        Args:
+            gameobject (GameObject): The game object to add.
+
+        """
+        self._objects.append(game_object)
 
 class GameObject(abc.ABC):
+    """Abstract base class for game objects that are represented by tiles."""
+
     def __init__(self):
         super().__init__()
 
     @property
     @abc.abstractmethod
-    def tiles(self):
+    def tiles(self) -> Iterator['Tile']:  # noqa: D102
         raise NotImplementedError
 
+### Class that handles the drawing of single tiles
+
 class Tile:
+    """
+    Represents a single tile on the board.
+
+    Attributes:
+        row (int): Row position of the tile.
+        column (int): Column position of the tile.
+        color (Tuple[int, int, int]): Color of the tile (RGB).
+
+    """
+
     def __init__(self, row, column, color):
         self._row = row
         self._column = column
@@ -47,8 +96,20 @@ class Tile:
         if not isinstance(other, Dir):
             raise ValueError('Type is wrong')
         return Tile(self._row + other.value[1], self._column + other.value[0], self._color)
+    
+### Class that handles the checkerboard
 
 class CheckerBoard(GameObject):
+    """
+    Represents the checkerboard pattern on the game board.
+
+    Attributes:
+        size (argparse.Namespace): Size of the board.
+        color1 (Tuple[int, int, int]): Color for alternating tiles.
+        color2 (Tuple[int, int, int]): Alternate color for the tiles.
+
+    """
+
     def __init__(self, size, color1, color2):
         self._size = size
         self._color1 = color1
@@ -60,8 +121,20 @@ class CheckerBoard(GameObject):
             for column in range(self._size.width):
                 yield Tile(row=row, column=column, color=self._color1 if (row + column) % 2 == 0 else self._color2)
 
+### Class that handles the snake
+
 class Snake(GameObject):
-    def __init__(self, positions, color, direction):
+    """
+    Represents the snake in the game.
+
+    Attributes:
+        positions (List[Tuple[int, int]]): Initial positions of the snake's segments.
+        color (Tuple[int, int, int]): Color of the snake.
+        direction (Dir): Direction the snake is moving.
+
+    """
+
+    def __init__(self, positions : list, color : tuple, direction : tuple):
         self._tiles = [Tile(p[0], p[1], color) for p in positions]
         self._color = color
         self._direction = direction
@@ -77,7 +150,7 @@ class Snake(GameObject):
     def __len__(self):
         return len(self._tiles)
 
-    def move(self, grow=False):
+    def move(self, grow=False ):
         self._tiles.insert(0, self._tiles[0] + self._direction)
         if not grow:
             self._tiles.pop()
@@ -86,7 +159,18 @@ class Snake(GameObject):
     def tiles(self):
         return iter(self._tiles)
 
+### Class that handles the fruits
+
 class Fruit(GameObject):
+    """
+    Represents a fruit on the board.
+
+    Attributes:
+        position (Tuple[int, int]): Position of the fruit.
+        color (Tuple[int, int, int]): Color of the fruit.
+
+    """
+
     def __init__(self, position, color):
         self._tiles = [Tile(row=position[0], column=position[1], color=color)]
         self._position = position
@@ -104,9 +188,6 @@ class Fruit(GameObject):
         return iter(self._tiles)
 
 def windowsize():
-    DEFAULT_WIDTH = 30
-    DEFAULT_HEIGHT = 30
-
     parser = argparse.ArgumentParser(description='Window size with numbers of tiles.')
     parser.add_argument('-w', '--width', type=int, default=DEFAULT_WIDTH, help="Width in tiles.")
     parser.add_argument('-e', '--height', type=int, default=DEFAULT_HEIGHT, help="Height in tiles.")
@@ -114,10 +195,9 @@ def windowsize():
 
     return args
 
+### The gaming loop
+
 def snake():
-    DEFAULT_TILE_SIZE = 20
-    DEFAULT_STARTING_SNAKE = [(10, 7), (10, 6), (10, 5)]
-    DEFAULT_DIRECTION = Dir.RIGHT
 
     size = windowsize()
     pygame.init()
@@ -176,6 +256,3 @@ def snake():
 
     pygame.quit()
     quit(0)
-
-if __name__ == "__main__":
-    game()
