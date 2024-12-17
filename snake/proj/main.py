@@ -2,73 +2,150 @@
 
 import pygame
 import argparse
-import random
+import random as rd
 import abc
 import enum
-from typing import List, Tuple, Iterator
+from typing import List, Tuple,Iterator
 
 ### Class that handles directions
 
 class Dir(enum.Enum):
     """Represents the direction of the snake's movement."""
 
-    UP = (0, -1)
-    DOWN = (0, 1)
-    LEFT = (-1, 0)
-    RIGHT = (1, 0)
+    DOWN=(1,0)
+    UP=(-1,0)
+    LEFT=(0,-1)
+    RIGHT=(0,1)
+
+### Class that handles observers
+
+class Observer(abc.ABC): 
+
+    def __init__(self) -> None:
+        """Define the observer."""
+        super().__init__()
+
+    def notify_object_eaten(self, obj: "GameObject") -> None :
+        """Notify if an object is eaten."""
+
+
+    def notify_object_moved(self, obj: "GameObject") -> None:
+        """Notify an object is moved."""
+
+
+    def notify_collision(self, obj : "GameObject") -> None:
+        """Notify a collision."""
+
+### Class that handles subjects
+
+class Subject(abc.ABC):  # noqa: B024, D101
+
+    def __init__(self) -> None:
+        """Define the subject."""
+        super().__init__()
+        self._observers : list[Observer] = []
+
+    @property
+    def observers(self) -> list[Observer]:
+        """Return the the observers."""
+        return self._observers
+
+    def attach_obs(self, obs: Observer) -> None:
+        """Attach the observers."""
+        print(f"Attach {obs} as observer of {self}.")  # noqa: T201
+        self._observers.append(obs)
+
+    def detach_obs(self, obs: Observer) -> None:
+        """Detach the observers."""
+        print(f"Detach observer {obs} from {self}.")  # noqa: T201
+        self._observers.remove(obs)
 
 
 ### Default constants
 
-DEFAULT_WIDTH = 30
-DEFAULT_HEIGHT = 30
-DEFAULT_TILE_SIZE = 20
-DEFAULT_STARTING_SNAKE = [(10, 7), (10, 6), (10, 5)]
-DEFAULT_DIRECTION = Dir.RIGHT
-
+DEFAULT_LINES=20 #Nombre de lignes par defaut
+DEFAULT_COLUMNS=30 #Nombre de colonnes par defaut
+DEFAULT_SIZE= 50# Taille du carre par defaut
 
 ### Class that handles the drawing of the game objects
 
-class Board:
-    """
-    Represents the game board where all objects are drawn.
+class Board(Subject, Observer) :
+    """Define the board used to draw globally."""
 
-    Attributes:
-        screen (pygame.Surface): The screen to draw objects on.
-        tile_size (int): Size of each tile on the board.
-
-    """
-
-    def __init__(self, screen: pygame.Surface, tile_size: int):
-        self._screen = screen
-        self._tile_size = tile_size
-        self._objects: List[GameObject] = []
+    def __init__(self, screen : pygame.Surface, tile_size : int, nb_rows : int, nb_cols : int)-> None :
+        self._screen=screen
+        self._tile_size=tile_size
+        self._object : list[object]=[]
+        self._nb_rows=nb_rows
+        self._nb_cols=nb_cols
 
     def draw(self) -> None:
-        """Draws all game objects on the screen."""
-        for obj in self._objects:
+        """Draw the tiles for the objects."""
+        for obj in self._object :
             for tile in obj.tiles:
-                tile.draw(self._screen, self._tile_size)
+                tile.draw(self._screen,self._tile_size)
 
-    def add_object(self, game_object: 'GameObject') -> None:
-        """Adds a game object to the board.
 
-        Args:
-            gameobject (GameObject): The game object to add.
+    def add_object(self, gameobject: "GameObject") -> None:
+        """Add the objects as observers."""
+        self._object.append(gameobject)
+        gameobject.attach_obs(self)
 
-        """
-        self._objects.append(game_object)
+    def remove_object(self, gameobject : "GameObject") -> None:
+        """Remove the objects of the observers."""
+        gameobject.detach_obs(self)
+        self._object.remove(gameobject)
 
-class GameObject(abc.ABC):
-    """Abstract base class for game objects that are represented by tiles."""
+    def create_fruit(self) -> "Fruit" :
+        """Create fruits."""
+        fruit=None
+        while fruit is None or self.detect_collision(fruit) is not None :
+            fruit=Fruit(color_fruit=pygame.Color("red"), col=rd.randint(0,self._nb_cols-1), row=rd.randint(0, self._nb_rows-1))
 
-    def __init__(self):
+    def detect_collision(self, obj : "GameObject") :
+        """Detect wether or not there has been a collision."""
+        for o in self._object :
+            if o != obj and not o.background and o in obj :
+                return o
+        return None
+
+
+    def notify_object_moved(self, obj:"GameObject") -> None :
+        """Detecte the collision with others."""  # noqa: D401
+        o=self.detect_collision(obj)
+        if o is not None:
+            obj.notify_collision(o)
+
+    def notify_object_eaten(self, obj:"GameObject")  -> None :
+        """Remove the old fruit and create a new one."""
+        self.remove_object(obj)
+        self.create_fruit()
+
+
+class GameObject(Subject, Observer) :
+    """Defining a class that handles game objects."""
+
+    def __init__(self) -> None :
+        """Define the GameObject."""
         super().__init__()
+
+    def __contains__(self, obj:object)-> bool :
+        """Define the in for an object."""
+        if isinstance(obj, GameObject) :
+            return any(t in obj.tiles for t in self.tiles)
+        return False
 
     @property
     @abc.abstractmethod
-    def tiles(self) -> Iterator['Tile']:  # noqa: D102
-        raise NotImplementedError
+    def tiles(self) -> None :
+        """Create the tiles'property."""
+        raise NotImplementedError # every object that inherits from GameObject
+                                  #  must have a tiles property
+
+    @property
+    def background(self) -> bool :
+        """Create the background's property."""
+        return False # by default, gameobject is not a background
 
 ### Class that handles the drawing of single tiles
 
@@ -83,20 +160,26 @@ class Tile:
 
     """
 
-    def __init__(self, row, column, color):
-        self._row = row
-        self._column = column
-        self._color = color
+    def __init__(self,row : int ,column : int , color : tuple) -> None:
+        """Initialize the tile."""
+        self._color=color
+        self._row=row
+        self._column=column
 
-    def draw(self, screen, tile_size):
-        rect = pygame.Rect(self._column * tile_size, self._row * tile_size, tile_size, tile_size)
+    def __repr__(self) -> str:
+        """Represent a tile."""
+        return f"({self._row}, {self._column})"
+
+    @property
+    def coord(self) -> tuple :
+        """Return the coordinates of a tile."""
+        return (self._row, self._column)
+
+    def draw(self, screen : pygame.Surface, tile_size : int) -> None:
+        """Draw the tiles."""
+        rect = pygame.Rect(self._column*tile_size, self._row*tile_size, tile_size, tile_size)
         pygame.draw.rect(screen, self._color, rect)
 
-    def __add__(self, other):
-        if not isinstance(other, Dir):
-            raise ValueError('Type is wrong')
-        return Tile(self._row + other.value[1], self._column + other.value[0], self._color)
-    
 ### Class that handles the checkerboard
 
 class CheckerBoard(GameObject):
@@ -110,16 +193,24 @@ class CheckerBoard(GameObject):
 
     """
 
-    def __init__(self, size, color1, color2):
-        self._size = size
-        self._color1 = color1
-        self._color2 = color2
+    def __init__(self, color_1 : tuple, color_2 : tuple , nb_rows : int , nb_columns : int) -> None :
+        """Initialize the Checkerboard."""
+        self._color_1=color_1
+        self._color_2=color_2
+        self._nb_rows=nb_rows
+        self._nb_columns=nb_columns
 
     @property
-    def tiles(self):
-        for row in range(self._size.height):
-            for column in range(self._size.width):
-                yield Tile(row=row, column=column, color=self._color1 if (row + column) % 2 == 0 else self._color2)
+    def background(self)->bool:
+        """Says the checkerboard is a background."""
+        return True
+
+    @property
+    def tiles(self)-> None :
+        """Generate the tiles."""
+        for column in range(self._nb_columns) :
+            for row in range(self._nb_rows) :
+                yield(Tile(row=row, column=column, color=self._color_1 if (column+row)%2==0 else self._color_2))
 
 ### Class that handles the snake
 
@@ -134,30 +225,58 @@ class Snake(GameObject):
 
     """
 
-    def __init__(self, positions : list, color : tuple, direction : tuple):
-        self._tiles = [Tile(p[0], p[1], color) for p in positions]
-        self._color = color
-        self._direction = direction
+    def __init__(self, tiles : list[Tile], direction : Dir) -> None :
+        """Define the parameters of the snake."""
+        self._tiles=tiles
+        self._direction=direction
+        self._size=len(self._tiles)
+
+    @classmethod
+    def create_from_pos(cls, color : tuple,row : int , column : int, size : int, direction : Dir) -> "Snake" :  # noqa: E501
+        """Create the snake."""
+        tiles=[Tile(row, column+p, color) for p in range(size)]
+        return Snake(tiles=tiles, direction=direction)
+
+    def __len__(self) -> int :
+        """Give the len of the snake, useful for the score."""
+        return len(self._tiles)
+
 
     @property
-    def dir(self):
+    def tiles (self) -> None :
+        """Return the list of the tiles."""
+        iter(self._tiles)
+
+    @property
+    def dir(self) -> Dir:
+        """Return the direction."""
         return self._direction
 
     @dir.setter
-    def dir(self, new_direction):
+    def dir(self, new_direction: Dir)-> None:
+        """Return the new direction."""
         self._direction = new_direction
 
-    def __len__(self):
-        return len(self._tiles)
+     # making the snake move
+    def move(self) -> None:
+        """Move the snake one tile."""
+        #add a new head
+        x,y=self._tiles[0].coord
+        coord=(x + self._direction.value[0], y + self._direction.value[1])
+        self._tiles.insert(0, Tile(coord[0], coord[1], color=pygame.Color("green")))
 
-    def move(self, grow=False ):
-        self._tiles.insert(0, self._tiles[0] + self._direction)
-        if not grow:
-            self._tiles.pop()
+        for obs in self.observers :
+            obs.notify_object_moved(self)
 
-    @property
-    def tiles(self):
-        return iter(self._tiles)
+        if self._size < len(self._tiles) :
+            self._tiles=self._tiles[:self._size]
+
+    def notify_collision(self, obj : GameObject)-> None :
+        """Notify an eatable object has been eaten."""
+        if isinstance(obj, Fruit) :
+            self._size+=1
+            for obs in self._observers :
+                obs.notify_object_eaten(obj)
 
 ### Class that handles the fruits
 
@@ -171,23 +290,25 @@ class Fruit(GameObject):
 
     """
 
-    def __init__(self, position, color):
-        self._tiles = [Tile(row=position[0], column=position[1], color=color)]
-        self._position = position
-        self._color = color
-
-    def eating(self, snake_head):
-        return self._position == (snake_head._row, snake_head._column)
-
-    def move(self, size):
-        self._position = (random.randint(0, size.height - 1), random.randint(0, size.width - 1))
-        self._tiles = [Tile(row=self._position[0], column=self._position[1], color=self._color)]
+    def __init__(self, color_fruit : tuple , col : int , row : int) -> None :
+        """Define the fruit."""
+        self._color_fruit=color_fruit
+        self._col=col
+        self._row=row
+        self._tiles=[Tile(self._row, self._col,self._color_fruit)]
 
     @property
-    def tiles(self):
-        return iter(self._tiles)
+    def tiles(self) -> None:
+        """Return the tiles."""
+        iter(self._tiles)
+
+    @property
+    def coord(self)->tuple :
+        """Return the coordonates of the fruit."""
+        return (self._row, self._col)
 
 def windowsize():
+    """Allows to modify the size of the playing window."""
     parser = argparse.ArgumentParser(description='Window size with numbers of tiles.')
     parser.add_argument('-w', '--width', type=int, default=DEFAULT_WIDTH, help="Width in tiles.")
     parser.add_argument('-e', '--height', type=int, default=DEFAULT_HEIGHT, help="Height in tiles.")
@@ -197,62 +318,101 @@ def windowsize():
 
 ### The gaming loop
 
-def snake():
+def snake() -> None:
+    """Code the entire game."""
+    color_1=(0,0,0)
+    colors_2=(255,255,255)
 
-    size = windowsize()
+    columns=30
+    rows=20
+    size=30
+
+    height=rows*size
+    width=columns*size
+
+    color_sna=(0,255,0)
+    #color_head=(0,0,255)  # noqa: ERA001
+    r_sna=10 # ligne de départ du snake
+    c_sna=5 # colonne de départ (position de la tête)
+    size_sna=5
+
+    speed=5
+
+    color_fruit=(255,0,0)
+    pos_fruit_1=[3,3] #row, column
+
+    direction = Dir.LEFT #the snake starts by moving towards left
+
+    screen = pygame.display.set_mode( (width, height) )
+
+    MyCheckerBoard=CheckerBoard(color_1,colors_2,rows,columns)
+
+    MySnake=Snake.create_from_pos(color_sna, r_sna, c_sna, size_sna, direction)
+    Myfruit=Fruit(color_fruit, pos_fruit_1[1],pos_fruit_1[0])
+    score=0
+
+
+    board=Board(screen=screen, tile_size=size, nb_rows=rows, nb_cols=columns)
+    board.add_object(MyCheckerBoard) # the order matters ! checkerboard first
+    board.add_object(MySnake)
+    board.add_object(Myfruit)
+
     pygame.init()
-    screen = pygame.display.set_mode((size.width * DEFAULT_TILE_SIZE, size.height * DEFAULT_TILE_SIZE))
+
     clock = pygame.time.Clock()
-    pygame.display.set_caption("Snake - Score: 0")
 
-    board = Board(screen=screen, tile_size=DEFAULT_TILE_SIZE)
+    game=True
+    while game is True:
 
-    checkerboard = CheckerBoard(size, (0, 0, 0), (255, 255, 255))
-    snake = Snake(DEFAULT_STARTING_SNAKE, (0, 255, 0), DEFAULT_DIRECTION)
-    fruit = Fruit((3, 3), (255, 0, 0))
-
-    board.add_object(checkerboard)
-    board.add_object(snake)
-    board.add_object(fruit)
-
-    game_running = True
-
-    while game_running:
-        clock.tick(10)
+        clock.tick(speed)
 
         for event in pygame.event.get():
+            #quit game
             if event.type == pygame.QUIT:
-                game_running = False
+                game=False
+            if event.type == pygame.KEYDOWN : #on precise qu'il s'agit d'un evnt qui concerne le clavier
+                if event.key ==pygame.K_q :
+                    game=False
 
-            elif event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_q:
-                    game_running = False
-                elif event.key == pygame.K_UP and snake.dir != Dir.DOWN:
-                    snake.dir = Dir.UP
-                elif event.key == pygame.K_DOWN and snake.dir != Dir.UP:
-                    snake.dir = Dir.DOWN
-                elif event.key == pygame.K_RIGHT and snake.dir != Dir.LEFT:
-                    snake.dir = Dir.RIGHT
-                elif event.key == pygame.K_LEFT and snake.dir != Dir.RIGHT:
-                    snake.dir = Dir.LEFT
 
-        grow = False
-        if fruit.eating(snake._tiles[0]):
-            grow = True
-            fruit.move(size)
+                if event.key==pygame.K_RIGHT :
+                    MySnake.dir=Dir.RIGHT
+                    MySnake.move()
+                    #score=Myfruit.collusion(MySnake, pos_fruit_1, pos_fruit_2, score)
+                    direction=Dir.RIGHT
+                    break #prevent from going immediately back
 
-        snake.move(grow=grow)
 
-        head = snake._tiles[0]
-        if (head._row < 0 or head._row >= size.height or
-                head._column < 0 or head._column >= size.width or
-                any(t._row == head._row and t._column == head._column for t in list(snake._tiles)[1:])):
-            print("Game Over!")
-            game_running = False
+                if event.key == pygame.K_LEFT :
+                    MySnake.dir=Dir.LEFT
+                    MySnake.move()
+                    #score=Myfruit.collusion(MySnake, pos_fruit_1, pos_fruit_2, score)
+                    direction=Dir.LEFT
+                    break
 
+
+                if event.key == pygame.K_UP :
+                    MySnake.dir=Dir.UP
+                    MySnake.move()
+                    #score=Myfruit.collusion(MySnake, pos_fruit_1, pos_fruit_2, score)
+                    direction=Dir.UP
+                    break
+
+                if event.key == pygame.K_DOWN :
+                    MySnake.dir=Dir.DOWN
+                    MySnake.move()
+                    #score=Myfruit.collusion(MySnake, pos_fruit_1, pos_fruit_2, score)
+                    direction =Dir.DOWN
+                    break
+
+        score=len(MySnake)
         board.draw()
-        pygame.display.set_caption(f"Snake - Score: {len(snake) - 3}")
+
+        pygame.display.set_caption(f"Ecran de jeu {score}")
+
+
+
         pygame.display.update()
 
+
     pygame.quit()
-    quit(0)
